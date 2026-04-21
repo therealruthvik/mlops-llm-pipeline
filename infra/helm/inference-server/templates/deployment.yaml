@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-inference-server
+  labels:
+    app: inference-server
+    version: {{ .Values.image.tag }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: inference-server
+  template:
+    metadata:
+      labels:
+        app: inference-server
+        version: {{ .Values.image.tag }}
+    spec:
+      containers:
+        - name: inference-server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: {{ .Values.mlflow.trackingUri }}
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: {{ .Values.mlflow.s3EndpointUrl }}
+            - name: AWS_ACCESS_KEY_ID
+              value: "minioadmin"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "minioadmin"
+            - name: MODEL_NAME
+              value: {{ .Values.model.name }}
+            - name: MODEL_STAGE
+              value: {{ .Values.model.stage }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            failureThreshold: 10
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+              cpu: {{ .Values.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+              cpu: {{ .Values.resources.limits.cpu }}

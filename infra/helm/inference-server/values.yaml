@@ -1,0 +1,27 @@
+replicaCount: 1
+
+image:
+  repository: llm-inference-server
+  tag: v1.5
+  pullPolicy: Never        # use local image loaded into kind
+
+service:
+  type: NodePort
+  port: 8000
+  nodePort: 30800
+
+mlflow:
+  trackingUri: "http://host.docker.internal:5001"
+  s3EndpointUrl: "http://host.docker.internal:9000"
+
+model:
+  name: "llm-chatbot"
+  stage: "Production"      # ← THIS changes v1.5 → v2.0 in Phase 4
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "3Gi"
+    cpu: "2000m"
