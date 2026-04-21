@@ -1,3 +1,6 @@
+canary:
+  enabled: false
+  weight: 0
 image:
   pullPolicy: Never
   repository: llm-inference-server
@@ -20,4 +23,4 @@ resources:
 service:
   nodePort: 30800
   port: 8000
-  type: NodePort
+  type: ClusterIP

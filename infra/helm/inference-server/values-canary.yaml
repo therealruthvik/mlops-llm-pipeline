@@ -1,0 +1,27 @@
+# Canary deployment — v2.0 gets 10% of traffic initially
+image:
+  repository: llm-inference-server
+  tag: v2.2          # whatever tag promote_and_deploy.py built
+  pullPolicy: Never
+
+service:
+  type: ClusterIP
+  port: 8000
+  nodePort: 30800
+
+model:
+  name: "llm-chatbot"
+  stage: "Production"
+  version: "2"
+
+canary:
+  enabled: true
+  weight: 10          # 10% traffic → v2.0
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "3Gi"
+    cpu: "2000m"
