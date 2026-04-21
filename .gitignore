@@ -3,3 +3,11 @@ __pycache__/
 .env
 mlruns/
 *.egg-info/
+venv/
+checkpoints/
+*.db
+mlruns/
+/tmp/
+__pycache__/
+*.pyc
+.env
