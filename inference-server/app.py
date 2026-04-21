@@ -4,12 +4,15 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+import time
 import mlflow
 import torch
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter, Histogram, Gauge, Info
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,12 +64,45 @@ def load_model_from_registry():
     model_state["version"]   = latest.version
     logger.info(f"Model v{latest.version} loaded and ready.")
 
+    # Update model info gauge
+    MODEL_INFO.labels(
+        model_name=MODEL_NAME,
+        stage=MODEL_STAGE,
+        version=str(latest.version)
+    ).set(1)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model_from_registry()
     yield
 
 app = FastAPI(title="LLM Inference Server", lifespan=lifespan)
+
+# ── Custom Prometheus metrics ─────────────────────────────────────────────────
+INFERENCE_LATENCY = Histogram(
+    "inference_latency_seconds",
+    "Time taken for model inference",
+    ["model_version", "stream"],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
+)
+TOKENS_GENERATED = Counter(
+    "tokens_generated_total",
+    "Total number of tokens generated",
+    ["model_version"]
+)
+INFERENCE_ERRORS = Counter(
+    "inference_errors_total",
+    "Total inference errors",
+    ["model_version"]
+)
+MODEL_INFO = Gauge(
+    "model_version_active",
+    "Currently active model version",
+    ["model_name", "stage", "version"]
+)
+
+# Auto-instrument all HTTP endpoints
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ── Request/Response schemas ──────────────────────────────────────────────────
 class PromptRequest(BaseModel):
@@ -95,13 +131,15 @@ def health():
 def generate(req: PromptRequest):
     tokenizer = model_state["tokenizer"]
     model     = model_state["model"]
+    version   = str(model_state["version"])
 
-    inputs = tokenizer(req.prompt, return_tensors="pt")
+    inputs    = tokenizer(req.prompt, return_tensors="pt")
     input_ids = inputs["input_ids"]
 
     if req.stream:
-        # Streaming response — simulates what ChatGPT does token by token
-        def token_stream() -> AsyncGenerator:
+        def token_stream():
+            start = time.time()
+            token_count = 0
             with torch.no_grad():
                 generated = input_ids.clone()
                 for _ in range(req.max_new_tokens):
@@ -109,27 +147,41 @@ def generate(req: PromptRequest):
                     next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
                     generated  = torch.cat([generated, next_token], dim=-1)
                     token_text = tokenizer.decode(next_token[0], skip_special_tokens=True)
+                    token_count += 1
                     yield f"data: {json.dumps({'token': token_text})}\n\n"
                     if next_token.item() == tokenizer.eos_token_id:
                         break
                 yield "data: [DONE]\n\n"
 
+            INFERENCE_LATENCY.labels(model_version=version, stream="true").observe(time.time() - start)
+            TOKENS_GENERATED.labels(model_version=version).inc(token_count)
+
         return StreamingResponse(token_stream(), media_type="text/event-stream")
 
     else:
-        with torch.no_grad():
-            output_ids = model.generate(
-                input_ids,
-                max_new_tokens=req.max_new_tokens,
-                temperature=req.temperature,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id,
+        start = time.time()
+        try:
+            with torch.no_grad():
+                output_ids = model.generate(
+                    input_ids,
+                    max_new_tokens=req.max_new_tokens,
+                    temperature=req.temperature,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id,
+                )
+            response_text = tokenizer.decode(
+                output_ids[0][input_ids.shape[-1]:],
+                skip_special_tokens=True
             )
-        response_text = tokenizer.decode(
-            output_ids[0][input_ids.shape[-1]:],
-            skip_special_tokens=True
-        )
-        return {"response": response_text, "model_version": model_state["version"]}
+            tokens_made = output_ids.shape[-1] - input_ids.shape[-1]
+            INFERENCE_LATENCY.labels(model_version=version, stream="false").observe(time.time() - start)
+            TOKENS_GENERATED.labels(model_version=version).inc(tokens_made)
+            return {"response": response_text, "model_version": version}
+        except Exception as e:
+            INFERENCE_ERRORS.labels(model_version=version).inc()
+            raise e
+
+      
 
 @app.get("/model-info")
 def model_info():
