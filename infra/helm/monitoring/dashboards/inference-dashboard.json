@@ -1,0 +1,69 @@
+{
+  "title": "LLM Inference Server",
+  "uid": "llm-inference",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Requests Per Second",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{
+        "expr": "rate(http_requests_total{job=~\".*inference.*\"}[1m])",
+        "legendFormat": "{{method}} {{handler}} - {{status}}"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "Inference Latency (p95)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{
+        "expr": "histogram_quantile(0.95, rate(inference_latency_seconds_bucket[5m]))",
+        "legendFormat": "p95 - model_version={{model_version}}"
+      }]
+    },
+    {
+      "id": 3,
+      "title": "Tokens Generated Per Second",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [{
+        "expr": "rate(tokens_generated_total[1m])",
+        "legendFormat": "model_version={{model_version}}"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Inference Errors",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{
+        "expr": "rate(inference_errors_total[5m])",
+        "legendFormat": "errors - model_version={{model_version}}"
+      }]
+    },
+    {
+      "id": 5,
+      "title": "Latency Heatmap by Version",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(inference_latency_seconds_bucket[5m]))",
+          "legendFormat": "p50 v{{model_version}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(inference_latency_seconds_bucket[5m]))",
+          "legendFormat": "p95 v{{model_version}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(inference_latency_seconds_bucket[5m]))",
+          "legendFormat": "p99 v{{model_version}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s"
+}
