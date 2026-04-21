@@ -4,7 +4,7 @@ canary:
 image:
   pullPolicy: Never
   repository: llm-inference-server
-  tag: v2.2
+  tag: v3.0
 mlflow:
   s3EndpointUrl: http://host.docker.internal:9000
   trackingUri: http://host.docker.internal:5001
