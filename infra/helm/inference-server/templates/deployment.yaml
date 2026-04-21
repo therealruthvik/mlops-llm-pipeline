@@ -5,6 +5,8 @@ metadata:
   labels:
     app: inference-server
     version: {{ .Values.image.tag }}
+  annotations:
+    model-version: "{{ .Values.model.version }}"
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -15,6 +17,8 @@ spec:
       labels:
         app: inference-server
         version: {{ .Values.image.tag }}
+      annotations:
+        model-version: "{{ .Values.model.version }}"
     spec:
       containers:
         - name: inference-server
@@ -35,6 +39,8 @@ spec:
               value: {{ .Values.model.name }}
             - name: MODEL_STAGE
               value: {{ .Values.model.stage }}
+            - name: MODEL_VERSION
+              value: "{{ .Values.model.version }}"
           readinessProbe:
             httpGet:
               path: /health
