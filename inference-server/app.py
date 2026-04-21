@@ -49,8 +49,10 @@ def load_model_from_registry():
     local_path = mlflow.artifacts.download_artifacts(artifact_uri)
     logger.info(f"Artifacts downloaded to {local_path}")
 
-    tokenizer = AutoTokenizer.from_pretrained(local_path)
+    # Load tokenizer from HuggingFace directly (avoids version mismatch)
+    tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
     tokenizer.pad_token = tokenizer.eos_token
+    # Load fine-tuned weights from MLflow/MinIO
     model = AutoModelForCausalLM.from_pretrained(local_path, torch_dtype=torch.float32)
     model.eval()
 
