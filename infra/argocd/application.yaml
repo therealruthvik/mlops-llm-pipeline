@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/threalruthvik/mlops-llm-pipeline.git
+    repoURL: https://github.com/therealruthvik/mlops-llm-pipeline.git
     targetRevision: main
     path: infra/helm/inference-server
   destination:
